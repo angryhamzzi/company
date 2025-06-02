@@ -1,30 +1,35 @@
 import pandas as pd
-import yaml
 import math
 from collections import OrderedDict
 import re
+from ruamel.yaml import YAML
 
 
 class ExcelToYaml:
     def __init__(self):
-        self.oper_col_start = 17
-        self.oper_col_end = 38
-        self.index_col_start = 8
-        self.index_col_end = 13
         self.ne = None
         self.engine_family_name = None
-        self.system_name_loc = 5
-        self.type_name_loc = 13
-        self.type_unit_loc = 14
+
 
     def read_excel(self, file_path, sheet_name):
         df = pd.read_excel(file_path, sheet_name=sheet_name)
         return df
 
+    def set_parameters(self, df):
+        oper_col_start = df.columns.get_loc('VZW')
+        oper_col_end = df.columns.get_loc('UTD_NVGNB')
+        index_col_start = df.columns.get_loc('Index0')
+        index_col_end = df.columns.get_loc('Index5')
+        system_name_loc = df.columns.get_loc('System Family Name')
+        type_name_loc = df.columns.get_loc('Type Name')
+        type_unit_loc = df.columns.get_loc('Unit')
+        return oper_col_start, oper_col_end, index_col_start, index_col_end, system_name_loc, type_name_loc, type_unit_loc
 
     def create_yaml(self, data, output_path):
+        yaml = YAML()
+        yaml.indent(mapping=2, sequence=4, offset=2)
         with open(output_path, 'w', encoding='utf-8') as file:
-            yaml.dump(data, file, default_flow_style=False)
+            yaml.dump(data, file)
 
     def collect_ne(self, ne):
         if 'ADPF' in ne:
@@ -52,32 +57,31 @@ class ExcelToYaml:
             return match.group(1).strip(), int(match.group(2))
         return None, None
 
-    def cnt_fields(self, index, df):
+    def cnt_fields(self, index, df, system_name_loc, type_name_loc, type_unit_loc):
         type_value = []
         type_unit = []
         merge_cnt = 1
-        while index + merge_cnt < len(df) and not isinstance(df.iloc[index + merge_cnt, self.system_name_loc], str):
+        while index + merge_cnt < len(df) and not isinstance(df.iloc[index + merge_cnt, system_name_loc], str):
             merge_cnt += 1
         for merge_idx in range(merge_cnt):
-            if isinstance(df.iloc[index + merge_idx, self.type_name_loc], str):
-                field_str, field_num = self.extract_number_after_string(df.iloc[index + merge_idx, self.type_name_loc], '0~')
+            if isinstance(df.iloc[index + merge_idx, type_name_loc], str):
+                field_str, field_num = self.extract_number_after_string(df.iloc[index + merge_idx, type_name_loc], '0~')
                 if field_num:
                     for i in range(field_num+1):
                         type_value.append(field_str+str(i))
-                        type_unit.append(df.iloc[index + merge_idx, self.type_unit_loc])
+                        type_unit.append(df.iloc[index + merge_idx, type_unit_loc])
                 else:
-                    type_value.append(df.iloc[index + merge_idx, self.type_name_loc])
-                    type_unit.append(df.iloc[index + merge_idx, self.type_unit_loc])
+                    type_value.append(df.iloc[index + merge_idx, type_name_loc])
+                    type_unit.append(df.iloc[index + merge_idx, type_unit_loc])
         return type_value, type_unit
 
-    def convert_to_yaml(self, df):
+    def convert_to_yaml(self, df, oper_col_start, oper_col_end, index_col_start, index_col_end, system_name_loc, type_name_loc, type_unit_loc):
         yaml_data = OrderedDict({'pm':OrderedDict({})})
 
-        operators = df.columns[self.oper_col_start-1:self.oper_col_end]
+        operators = df.columns[oper_col_start:oper_col_end+1]
         for oper_index, operator in enumerate(operators):
             yaml_data['pm'][operator] = OrderedDict({'counters': OrderedDict({})})
             for index, row in df.iterrows():
-
                 excel_ne_name = row['NE']
                 if isinstance(excel_ne_name, str):
                     self.ne_name = self.collect_ne(excel_ne_name)
@@ -87,10 +91,10 @@ class ExcelToYaml:
                 system_family_name = row['System Family Name']
                 if not isinstance(system_family_name, str):
                     continue
-                indexes = row[self.index_col_start - 1:self.index_col_end]
+                indexes = row[index_col_start:index_col_end+1]
                 index_value = [index for index in indexes if isinstance(index, str)]
                 additional_params = {'granularity': '1h'}
-                type_value, type_unit = self.cnt_fields(index, df)
+                type_value, type_unit = self.cnt_fields(index, df, system_name_loc, type_name_loc, type_unit_loc)
 
                 if row[operator] == 'O':
                     if self.ne_name not in yaml_data['pm'][operator]['counters']:
@@ -118,8 +122,8 @@ def main():
     output_path = 'data_list2.yaml'
 
     df = excel_to_yaml.read_excel(file_path, sheet_name)
-
-    yaml_data = excel_to_yaml.convert_to_yaml(df)
+    oper_col_start, oper_col_end, index_col_start, index_col_end, system_name_loc, type_name_loc, type_unit_loc = excel_to_yaml.set_parameters(df)
+    yaml_data = excel_to_yaml.convert_to_yaml(df, oper_col_start, oper_col_end, index_col_start, index_col_end, system_name_loc, type_name_loc, type_unit_loc)
 
     excel_to_yaml.create_yaml(yaml_data, output_path)
 
