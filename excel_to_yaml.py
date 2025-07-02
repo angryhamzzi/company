@@ -4,6 +4,7 @@ import math
 from collections import OrderedDict
 import re
 from ruamel.yaml import YAML
+# Process interface Excel file: 1) add Engine Family Name refer to operators. 2) remove enter in operator name
 
 
 class ExcelToYaml:
