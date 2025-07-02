@@ -1,10 +1,11 @@
 import pandas as pd
-# import yaml
-import math
 from collections import OrderedDict
 import re
 from ruamel.yaml import YAML
-# Process interface Excel file: 1) add Engine Family Name refer to operators. 2) remove enter in operator name
+"""
+1. Process interface Excel file: 1) add Engine Family Name. 2) remove enter in operators names.
+2. Insert or modify values in 'set_parameters', 'collected_ne', 'find_version', file_path, sheet_name, and output_path
+"""
 
 
 class ExcelToYaml:
@@ -26,7 +27,7 @@ class ExcelToYaml:
         df = pd.read_excel(file_path, sheet_name=sheet_name)
         return df
 
-
+    # parameter values are depend on excel file format.
     def set_parameters(self, df):
         self.oper_col_start = df.columns.get_loc('VZW')
         self.oper_col_end = df.columns.get_loc('UTD_NVGNB')
@@ -45,7 +46,7 @@ class ExcelToYaml:
         with open(output_path, 'w', encoding='utf-8') as file:
             yaml.dump(data, file)
 
-
+    # Retrieves the NE value for yaml file.
     def collect_ne(self, ne):
         if 'ADPF' in ne:
             return 'adpf'
@@ -56,7 +57,7 @@ class ExcelToYaml:
         else:
             return None
 
-
+    # Sort the values of the yaml file in the order of Excel input. If not present, it is sorted in alphabetical order.
     def convert_ordered_dict_to_dict(self, ordered_dict):
         if isinstance(ordered_dict, OrderedDict):
             ordered_dict = dict(ordered_dict)
@@ -66,7 +67,7 @@ class ExcelToYaml:
         else:
             return ordered_dict
 
-
+    # Function to input rsrp bins in order by unfolding them. Read numbers from "0~" to the next and output the number.
     def extract_number_after_string(self, text, target_string):
         pattern = rf'(.*)(?={re.escape(target_string)}){re.escape(target_string)}(\d{{2}})'
         match = re.search(pattern, text)
@@ -74,7 +75,7 @@ class ExcelToYaml:
             return match.group(1).strip(), int(match.group(2))
         return None, None
 
-
+    # A function to fill in the field values. If there are multiple values such as "cnt bin", fill them all.
     def cnt_fields(self, index, df):
         type_value = []
         type_unit = []
@@ -93,7 +94,7 @@ class ExcelToYaml:
                     type_unit.append(df.iloc[index + merge_idx, self.type_unit_loc])
         return type_value, type_unit
 
-
+    # The function read the version column index and output it. It needs to be changed according to the Excel format.
     def find_versions(self, df, oper_index):
         version_data = df.iloc[oper_index, self.version_col_start:self.version_col_end]
         is_version = []
@@ -106,7 +107,7 @@ class ExcelToYaml:
             is_version.append('v25_B_0')
         return is_version
 
-
+    # Create a data frame based on the read Excel file. Read in the operator order and if the value contains "O", store the value inside yaml_data.
     def convert_to_yaml(self, df):
         yaml_data = OrderedDict({'pm':OrderedDict({})})
         operators = df.columns[self.oper_col_start:self.oper_col_end+1]
