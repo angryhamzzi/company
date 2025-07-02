@@ -98,6 +98,7 @@ class ExcelToYaml:
         version_data = df.iloc[oper_index, self.version_col_start:self.version_col_end]
         is_version = []
         if version_data.iloc[0]:
+            is_version.append('v24_A_0')
             is_version.append('v24_B_0')
         if version_data.iloc[1]:
             is_version.append('v25_A_0')
